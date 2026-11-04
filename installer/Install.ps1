@@ -2,6 +2,14 @@
 param([string]$GamePath)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+function Get-PayloadFileHash {
+    param([Parameter(Mandatory=$true)][string]$LiteralPath, [string]$Algorithm = 'SHA256')
+    if ($Algorithm -ne 'SHA256') { throw 'Only SHA256 payload verification is supported.' }
+    $stream = [IO.File]::OpenRead($LiteralPath)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { [pscustomobject]@{ Hash = [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '') } }
+    finally { $sha.Dispose(); $stream.Dispose() }
+}
 function Find-Game {
     $roots = [Collections.Generic.List[string]]::new()
     $registry = Get-ItemProperty -LiteralPath 'HKCU:\Software\Valve\Steam' -ErrorAction SilentlyContinue
@@ -38,12 +46,12 @@ foreach ($relative in $payload) {
     $entry = $manifest.Files.PSObject.Properties[$key]
     if (!$entry -or $entry.Value -notmatch '^[A-Fa-f0-9]{64}$') { throw "Missing integrity record: $key" }
     $source = Join-Path $PSScriptRoot $key
-    if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ne $entry.Value) { throw "Package file failed integrity check: $key" }
+    if ((Get-PayloadFileHash -LiteralPath $source -Algorithm SHA256).Hash -ne $entry.Value) { throw "Package file failed integrity check: $key" }
 }
 $dxvkHash = 'C126316F7478EAFF1AD8087702EDA5930F2400187B9C8B3592219C34F6632780'
-if ((Get-FileHash -LiteralPath (Join-Path $PSScriptRoot 'payload\bin\win64\d3d9.dll')).Hash -ne $dxvkHash) { throw 'Pinned official DXVK binary hash mismatch.' }
+if ((Get-PayloadFileHash -LiteralPath (Join-Path $PSScriptRoot 'payload\bin\win64\d3d9.dll')).Hash -ne $dxvkHash) { throw 'Pinned official DXVK binary hash mismatch.' }
 $wrapper = Join-Path $game 'bin\win64\d3d9.dll'
-if ((Test-Path -LiteralPath $wrapper) -and (Get-FileHash -LiteralPath $wrapper).Hash -ne $dxvkHash) {
+if ((Test-Path -LiteralPath $wrapper) -and (Get-PayloadFileHash -LiteralPath $wrapper).Hash -ne $dxvkHash) {
     throw 'An unknown D3D9 wrapper is installed (possibly the old D3D12 renderer). It was preserved. Restore/remove that renderer before installing this package.'
 }
 foreach ($relative in @('garrysmod\addons\gmodrp_native_renderer', 'garrysmod\lua\bin\gmcl_gmodrp_renderer_win64.dll', 'garrysmod\lua\bin\gmsv_gmodrp_renderer_win64.dll')) {
@@ -72,8 +80,8 @@ foreach ($relative in @($payload) + @($loaderRelative)) {
         $destination = Join-Path $backup $relative
         New-Item -ItemType Directory -Path (Split-Path $destination -Parent) -Force | Out-Null
         Copy-Item -LiteralPath $target -Destination $destination
-        $originalHash = (Get-FileHash -LiteralPath $target).Hash
-        if ((Get-FileHash -LiteralPath $destination).Hash -ne $originalHash) { throw "Backup verification failed: $relative" }
+        $originalHash = (Get-PayloadFileHash -LiteralPath $target).Hash
+        if ((Get-PayloadFileHash -LiteralPath $destination).Hash -ne $originalHash) { throw "Backup verification failed: $relative" }
     }
     $records += [pscustomobject]@{ RelativePath=$relative; Existed=[bool]$existed; OriginalSHA256=$originalHash }
 }
@@ -86,7 +94,7 @@ foreach ($relative in $payload) {
     New-Item -ItemType Directory -Path (Split-Path $destination -Parent) -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot ('payload\' + $relative)) -Destination $destination -Force
     $expected = $manifest.Files.PSObject.Properties['payload\' + $relative].Value
-    if ((Get-FileHash -LiteralPath $destination).Hash -ne $expected) { throw "Installed file verification failed: $relative. Originals are in $backup" }
+    if ((Get-PayloadFileHash -LiteralPath $destination).Hash -ne $expected) { throw "Installed file verification failed: $relative. Originals are in $backup" }
 }
 [IO.File]::WriteAllText($loaderPath, $loader, [Text.UTF8Encoding]::new($false))
 $receipt.State = 'INSTALLED'

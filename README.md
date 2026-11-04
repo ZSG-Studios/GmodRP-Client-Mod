@@ -2,6 +2,8 @@
 
 Windows x64 Garry's Mod client package with pinned DXVK 3.1.1, loaded-renderer information and the native **Video > Advanced > Multicore Rendering** selection. The profile uses the engine's existing convars. There is no separate floating graphics window, temporal upscaler or replacement game engine.
 
+[Download the single installer](https://github.com/ZSG-Studios/GmodRP-Client-Mod/releases/latest/download/GmodRP-Client-Mod-Setup.exe). Close Garry's Mod, run it, then launch the game normally. See [tested behavior](docs/TESTING.md).
+
 Use Garry's Mod's Windows `x86-64` branch and a Vulkan-capable GPU/driver. Renderer status checks the loaded D3D9 DLL hash and Vulkan loader; installing a DLL alone is not proof of a successfully initialized Vulkan device. FPS improvement is not guaranteed.
 
 ## Build and test
